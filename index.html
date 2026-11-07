@@ -134,6 +134,7 @@ background-image:repeating-linear-gradient(transparent,transparent 31px,rgba(185
 <button class="btn small" id="unlockBtn" style="flex:none">进入测试</button>
 </div>
 <p class="err" id="codeErr"></p>
+<p class="fine" id="expiryNote" style="text-align:center;margin-top:6px">本测试自第一次进入起 5 小时内有效，过期请重新购买。</p>
 <details class="hint"><summary>验证码在哪？</summary>
 下单后，卖家会发你本页链接 + 验证码。复制链接到浏览器打开、输入验证码即可。验证码是 4 位数字，不要带空格；如果还没收到，先看一下私信，或联系卖家补发。
 </details>
@@ -230,6 +231,34 @@ background-image:repeating-linear-gradient(transparent,transparent 31px,rgba(185
 /* Single shared access code for all buyers. */
 var ACCESS_CODE="1024";
 function codeIsValid(v){return String(v).replace(/\s/g,"")===ACCESS_CODE;}
+/* 5-hour validity per device, counted from first successful entry. */
+var EXPIRY_KEY="hhyq_first_enter";
+var EXPIRY_LIMIT=5*60*60*1000;
+function getFirstEnterTime(){
+try{
+var v=window.localStorage.getItem(EXPIRY_KEY);
+if(v===null||v===undefined||v==="") return null;
+var n=parseInt(String(v),10);
+if(isNaN(n)) return null;
+return n;
+}catch(e){ return null; }
+}
+function isExpired(){
+var t=getFirstEnterTime();
+if(t===null) return false;
+return (Date.now()-t)>=EXPIRY_LIMIT;
+}
+function recordFirstEnter(){
+try{
+if(getFirstEnterTime()===null){
+window.localStorage.setItem(EXPIRY_KEY,String(Date.now()));
+}
+}catch(e){}
+}
+function showExpired(){
+var err=document.getElementById("codeErr");
+if(err) err.textContent="已过期，请重新购买";
+}
 var QUESTIONS = [
 { scene:"场景一 · 列车重逢", text:"一趟开往高原的列车上，你推开车厢门，发现对面坐着那个已经三年没说过话的老朋友。你会？",
 opts:[
@@ -362,9 +391,10 @@ var answers=[], chosen=[], cur=0;
 function show(id){ ["view-gate","view-start","view-quiz","view-result"].forEach(function(v){document.getElementById(v).classList.toggle("active", v===id);}); window.scrollTo({top:0,behavior:"smooth"});}
 function toast(msg){ var t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(function(){t.classList.remove("show")},2400);}
 function unlock(fromUrl){
+if(isExpired()){ showExpired(); return false; }
 var input=document.getElementById("codeInput");
 var v=input.value.replace(/\s/g,"");
-if(codeIsValid(v)){ document.getElementById("codeErr").textContent=""; show("view-start"); return true;}
+if(codeIsValid(v)){ recordFirstEnter(); document.getElementById("codeErr").textContent=""; show("view-start"); return true; }
 if(fromUrl===true){ document.getElementById("codeErr").textContent="码不对，请检查一下"; input.value=""; try{ input.focus(); }catch(e){} return false;}
 document.getElementById("codeErr").textContent="码不对，请检查一下：卖家发你的是 4 位数字，不要带空格。";
 return false;
@@ -402,6 +432,7 @@ unlock(true);
 }
 document.getElementById("unlockBtn").addEventListener("click", function(){ unlock(false); });
 document.getElementById("codeInput").addEventListener("keydown", function(e){ if(e.key==="Enter") unlock(false);});
+if(isExpired()){ showExpired(); }
 applyUrlCode();
 document.getElementById("startBtn").addEventListener("click", function(){ answers=[]; chosen=[]; cur=0; renderQ(); show("view-quiz");});
 function renderQ(){
